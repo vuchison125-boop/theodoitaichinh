@@ -5,7 +5,7 @@ from tkinter import ttk
 class BillingApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Hóa đơn thanh toán - Giao diện quản trị (Prototype)")
+        self.root.title("Hóa đơn thanh toán")
 
         # Danh sách phòng
         self.rooms = ["Phòng 101", "Phòng 102", "Phòng 103"]
@@ -24,7 +24,7 @@ class BillingApp:
         top.pack(pady=8)
 
         # Nút "Quay lại" ở phía bên trái màn hình
-        self.back_btn = tk.Button(top, text="🔙 Quay lại", width=12, command=self.close_interface)
+        self.back_btn = tk.Button(top, text="🔙 Quay lại", width=12, command=self.close_interface, bg="white")
         self.back_btn.pack(side='left', padx=(5, 0))
 
         tk.Label(top, text="Chọn phòng thuê để thanh toán:").pack(side='left', padx=(10, 0))
@@ -33,7 +33,7 @@ class BillingApp:
         self.room_combo.bind("<<ComboboxSelected>>", self.on_room_changed)
 
         # Badge trạng thái thanh toán cạnh danh sách phòng
-        self.status_badge = tk.Label(top, text="", width=14, relief="ridge", bd=2)
+        self.status_badge = tk.Label(top, text="", width=14, relief="ridge", bd=2, bg="white")
         self.status_badge.pack(side='left', padx=(8,0))
 
         # Khung nút hành động (6 nút)
@@ -41,25 +41,25 @@ class BillingApp:
         btn_frame.pack(pady=6)
 
         # Icons (emoji) làm "icon" cho từng nút
-        self.btn_rent = tk.Button(btn_frame, text="💼 Tiền thuê/phòng/tháng", width=22, command=self.add_rent)
+        self.btn_rent = tk.Button(btn_frame, text="💼 Tiền thuê/phòng/tháng", width=22, command=self.add_rent, bg="white")
         self.btn_rent.grid(row=0, column=0, padx=5, pady=5)
 
-        self.btn_edit_rent = tk.Button(btn_frame, text="🛠️ Sửa giá thuê", width=22, command=self.edit_rent)
+        self.btn_edit_rent = tk.Button(btn_frame, text="🛠️ Sửa giá thuê", width=22, command=self.edit_rent, bg="white")
         self.btn_edit_rent.grid(row=0, column=1, padx=5, pady=5)
 
-        self.btn_electric = tk.Button(btn_frame, text="⚡ Tiền điện", width=22, command=self.add_electric)
+        self.btn_electric = tk.Button(btn_frame, text="⚡ Tiền điện", width=22, command=self.add_electric, bg="white")
         self.btn_electric.grid(row=0, column=2, padx=5, pady=5)
 
-        self.btn_water = tk.Button(btn_frame, text="💧 Tiền nước", width=22, command=self.add_water)
+        self.btn_water = tk.Button(btn_frame, text="💧 Tiền nước", width=22, command=self.add_water, bg="white")
         self.btn_water.grid(row=1, column=0, padx=5, pady=5)
 
-        self.btn_service = tk.Button(btn_frame, text="🧰 Dịch vụ khác", width=22, command=self.add_service)
+        self.btn_service = tk.Button(btn_frame, text="🧰 Dịch vụ khác", width=22, command=self.add_service, bg="white")
         self.btn_service.grid(row=1, column=1, padx=5, pady=5)
 
-        self.btn_update = tk.Button(btn_frame, text="🧾 Cập nhật trạng thái thanh toán", width=22, command=self.update_payment_window)
+        self.btn_update = tk.Button(btn_frame, text="🧾 Cập nhật trạng thái thanh toán", width=22, command=self.update_payment_window, bg="white")
         self.btn_update.grid(row=1, column=2, padx=5, pady=5)
 
-        self.reset_btn = tk.Button(root, text="Reset", command=self.reset, width=20)
+        self.reset_btn = tk.Button(root, text="Reset", command=self.reset, width=20, bg="white")
         self.reset_btn.pack(pady=5)
 
         # Khung hiển thị chi tiết và tổngquan
@@ -193,10 +193,10 @@ class BillingApp:
             self.refresh_display()
             messagebox.showinfo("Thông báo", f"Phòng {room} đã được chuyển sang trạng thái chưa thanh toán.")
 
-        btn_paid = tk.Button(win, text="✅ Đã thanh toán", width=16, command=set_paid)
+        btn_paid = tk.Button(win, text="✅ Đã thanh toán", width=16, command=set_paid, bg="white")
         btn_paid.pack(pady=6)
 
-        btn_unpaid = tk.Button(win, text="❌ Chưa thanh toán", width=16, command=set_unpaid)
+        btn_unpaid = tk.Button(win, text="❌ Chưa thanh toán", width=16, command=set_unpaid, bg="white")
         btn_unpaid.pack(pady=6)
 
     # Reset toàn bộ dữ liệu
