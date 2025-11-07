@@ -235,7 +235,7 @@ class BillingApp:
         summary = (
             f"Tổng số tiền: {data['total_amount']:.0f} VND\n"
             f"Đã thanh toán:   {data['total_paid']:.0f} VND\n"
-            f"Số dư:      {max(balance,0):.0f} VND\n"
+            f"Số nợ:      {max(balance,0):.0f} VND\n"
             f"Trạng thái:   {status}"
         )
         self.status_label.config(text=summary)
