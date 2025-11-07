@@ -5,7 +5,7 @@ from tkinter import ttk
 class BillingApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Rental Billing - Admin UI (Prototype)")
+        self.root.title("Hóa đơn thanh toán - Giao diện quản trị (Prototype)")
 
         # Danh sách phòng
         self.rooms = ["Phòng 101", "Phòng 102", "Phòng 103"]
@@ -22,7 +22,12 @@ class BillingApp:
         # Giao diện chọn phòng
         top = tk.Frame(root)
         top.pack(pady=8)
-        tk.Label(top, text="Chọn phòng thuê để thanh toán:").pack(side='left')
+
+        # Nút "Quay lại" ở phía bên trái màn hình
+        self.back_btn = tk.Button(top, text="🔙 Quay lại", width=12, command=self.close_interface)
+        self.back_btn.pack(side='left', padx=(5, 0))
+
+        tk.Label(top, text="Chọn phòng thuê để thanh toán:").pack(side='left', padx=(10, 0))
         self.room_combo = ttk.Combobox(top, values=self.rooms, textvariable=self.current_room, state='readonly', width=18)
         self.room_combo.pack(side='left', padx=5)
         self.room_combo.bind("<<ComboboxSelected>>", self.on_room_changed)
@@ -57,7 +62,7 @@ class BillingApp:
         self.reset_btn = tk.Button(root, text="Reset", command=self.reset, width=20)
         self.reset_btn.pack(pady=5)
 
-        # Khung hiển thị chi tiết và tổng quan
+        # Khung hiển thị chi tiết và tổngquan
         summary_frame = tk.Frame(root)
         summary_frame.pack(padx=10, pady=10, fill='both', expand=True)
 
@@ -73,33 +78,33 @@ class BillingApp:
 
         self.refresh_display()
 
+    def close_interface(self):
+        # Đóng giao diện hiện tại
+        self.root.destroy()
+
     def on_room_changed(self, event):
         self.refresh_display()
 
     def _status_and_color_from(self, data):
-        # Xác định trạng thái và màu dựa trên dữ liệu phòng
+        # Xác định trạng thái và màu dựa trên dữ liệu phòng 
         if data['total_amount'] == 0:
-            return "No charges yet", "#f1c40f"  # vàng
+            return "Chưa tính toán", "#f1c40f"  # vàng
         if data.get('payment_status') == "Paid":
-            return "Paid", "#28a745"  # xanh lá
+            return "Đã thanh toán", "#28a745"  # xanh lá
         if data.get('payment_status') == "Unpaid":
-            return "Unpaid", "#dc3545"  # đỏ
-        # Partial sẽ là màu cam/ vàng đậm
-        if data['total_paid'] > 0 and data['total_paid'] < data['total_amount']:
-            return "Partially Paid", "#f0ad4e"  # cam
-        return "Unpaid", "#dc3545"
+            return "Chưa thanh toán", "#dc3545"  # đỏ
 
     # 1) Thêm Tiền thuê/phòng (nhập một lần)
     def add_rent(self):
         room = self.current_room.get()
         data = self.rooms_data[room]
         if any(it['type'] == 'Rent' for it in data['items']):
-            messagebox.showinfo("Thông báo", "Rent đã được thiết lập cho phòng này. Sử dụng 'Sửa giá thuê' để chỉnh sửa.")
+            messagebox.showinfo("Thông báo", "Tiền thuê/phòng/tháng đã được thiết lập cho phòng này. Sử dụng 'Sửa giá thuê' để chỉnh sửa.")
             return
         amount = simpledialog.askfloat("Nhập Tiền thuê/phòng", "Nhập tiền thuê/phòng theo tháng (VND):", minvalue=0.0)
         if amount is None:
             return
-        self._add_item(room, "Rent", amount, "Monthly rent")
+        self._add_item(room, "Rent", amount, "Thuê/phòng theo tháng")
 
     # 2) Sửa giá thuê (chỉ khi Rent đã có)
     def edit_rent(self):
@@ -118,22 +123,22 @@ class BillingApp:
         self.rooms_data[room]['total_amount'] += delta
         self.refresh_display()
 
-    # 3) Tiền điện: nhập tiêu thụ -> *4
+    # 3) Tiền điện: nhập tiêu thụ -> *4000
     def add_electric(self):
         room = self.current_room.get()
         consumption = simpledialog.askfloat("Nhập Tiền điện", "Nhập số điện tiêu thụ (kWh):", minvalue=0.0)
         if consumption is None:
             return
-        amount = consumption * 4
+        amount = consumption * 4000
         self._add_item(room, "Electricity", amount, f"Điện ({consumption} kWh)")
 
-    # 4) Tiền nước: nhập tiêu thụ -> *30
+    # 4) Tiền nước: nhập tiêu thụ -> *30000
     def add_water(self):
         room = self.current_room.get()
         consumption = simpledialog.askfloat("Nhập Tiền nước", "Nhập số nước tiêu thụ (m3):", minvalue=0.0)
         if consumption is None:
             return
-        amount = consumption * 30
+        amount = consumption * 30000
         self._add_item(room, "Water", amount, f"Nước ({consumption} m3)")
 
     # 5) Tiền dịch vụ khác: cố định 100000
@@ -156,7 +161,7 @@ class BillingApp:
         types_present = {it['type'] for it in data['items']}
         required = {'Rent','Electricity','Water','OtherService'}
         if not required.issubset(types_present):
-            messagebox.showinfo("Thông báo", "Cần nhập đủ 4 loại phí: Rent, Electricity, Water, OtherService.")
+            messagebox.showinfo("Thông báo", "Cần nhập đủ 4 loại phí: Tiền thuê/phòng, Tiền điện, Tiền nước, Dịch vụ khác.")
             return
 
         remaining = data['total_amount'] - data['total_paid']
@@ -212,7 +217,14 @@ class BillingApp:
             self.items_text.insert(tk.END, "Chưa có khoản phí nào được thêm cho phòng này.\n")
         else:
             for idx, item in enumerate(data['items'], start=1):
-                self.items_text.insert(tk.END, f"{idx}. {item['type']}: {item['amount']:.0f} VND - {item['description']}\n")
+                type_name_map = {
+                    'Rent': 'Tiền thuê/phòng',
+                    'Electricity': 'Tiền điện',
+                    'Water': 'Tiền nước',
+                    'OtherService': 'Dịch vụ khác'
+                }
+                display_type = type_name_map.get(item['type'], item['type'])
+                self.items_text.insert(tk.END, f"{idx}. {display_type}: {item['amount']:.0f} VND - {item['description']}\n")
         self.items_text.config(state='disabled')
 
         # Cập nhật trạng thái tổng quan và màu badge
@@ -221,9 +233,9 @@ class BillingApp:
 
         balance = data['total_amount'] - data['total_paid']
         summary = (
-            f"Total amount: {data['total_amount']:.0f} VND\n"
-            f"Total paid:   {data['total_paid']:.0f} VND\n"
-            f"Balance:      {max(balance,0):.0f} VND\n"
+            f"Tổng số tiền: {data['total_amount']:.0f} VND\n"
+            f"Đã thanh toán:   {data['total_paid']:.0f} VND\n"
+            f"Số dư:      {max(balance,0):.0f} VND\n"
             f"Trạng thái:   {status}"
         )
         self.status_label.config(text=summary)
