@@ -1,11 +1,16 @@
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 from tkinter import ttk
+import json
+import os
 
 class BillingApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Hóa đơn thanh toán")
+
+        # Đường dẫn lưu dữ liệu (billing_data.json cùng thư mục script)
+        self.data_file = os.path.join(os.path.dirname(__file__), "billing_data.json")
 
         # Danh sách phòng
         self.rooms = ["Phòng 101", "Phòng 102", "Phòng 103"]
@@ -18,6 +23,9 @@ class BillingApp:
 
         # Phòng đang làm việc
         self.current_room = tk.StringVar(value=self.rooms[0])
+
+        # Tải dữ liệu từ file (nếu có)
+        self.load_data()
 
         # Giao diện chọn phòng
         top = tk.Frame(root)
@@ -40,7 +48,6 @@ class BillingApp:
         btn_frame = tk.Frame(root)
         btn_frame.pack(pady=6)
 
-        # Icons (emoji) làm "icon" cho từng nút
         self.btn_rent = tk.Button(btn_frame, text="💼 Tiền thuê/phòng/tháng", width=22, command=self.add_rent, bg="white")
         self.btn_rent.grid(row=0, column=0, padx=5, pady=5)
 
@@ -62,7 +69,7 @@ class BillingApp:
         self.reset_btn = tk.Button(root, text="Reset", command=self.reset, width=20, bg="white")
         self.reset_btn.pack(pady=5)
 
-        # Khung hiển thị chi tiết và tổngquan
+        # Khung hiển thị chi tiết và tổng quan
         summary_frame = tk.Frame(root)
         summary_frame.pack(padx=10, pady=10, fill='both', expand=True)
 
@@ -76,17 +83,23 @@ class BillingApp:
         self.status_label = tk.Label(root, text="", anchor='w', justify='left')
         self.status_label.pack(fill='x', padx=10, pady=5)
 
+        # Đăng ký xử lý đóng cửa sổ để lưu lại
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
         self.refresh_display()
 
     def close_interface(self):
-        # Đóng giao diện hiện tại
+        self.on_close()
+
+    def on_close(self):
+        # Lưu dữ liệu và đóng
+        self.save_data()
         self.root.destroy()
 
     def on_room_changed(self, event):
         self.refresh_display()
 
     def _status_and_color_from(self, data):
-        # Xác định trạng thái và màu dựa trên dữ liệu phòng 
         if data['total_amount'] == 0:
             return "Chưa tính toán", "#f1c40f"  # vàng
         if data.get('payment_status') == "Paid":
@@ -121,6 +134,7 @@ class BillingApp:
         delta = new - old
         rent_item['amount'] = new
         self.rooms_data[room]['total_amount'] += delta
+        self.save_data()
         self.refresh_display()
 
     # 3) Tiền điện: nhập tiêu thụ -> *4000
@@ -152,6 +166,7 @@ class BillingApp:
         item = {"type": item_type, "amount": amount, "description": description}
         self.rooms_data[room]['items'].append(item)
         self.rooms_data[room]['total_amount'] += amount
+        self.save_data()
         self.refresh_display()
 
     # 6) Cập nhật trạng thái thanh toán
@@ -175,7 +190,6 @@ class BillingApp:
 
         tk.Label(win, text=f"Cập nhật trạng thái thanh toán cho {room}", font=('Arial', 12, 'bold')).pack(pady=6)
 
-        # Thay vì nhập số tiền, hiện hai nút để đặt trạng thái
         status_frame = tk.Frame(win)
         status_frame.pack(pady=8)
         tk.Label(status_frame, text="Chọn trạng thái thanh toán:").pack()
@@ -184,12 +198,14 @@ class BillingApp:
             data['total_paid'] = max(data['total_paid'], data['total_amount'])
             data['payment_status'] = "Paid"
             win.destroy()
+            self.save_data()
             self.refresh_display()
             messagebox.showinfo("Thông báo", f"Phòng {room} thanh toán thành công.")
 
         def set_unpaid():
             data['payment_status'] = "Unpaid"
             win.destroy()
+            self.save_data()
             self.refresh_display()
             messagebox.showinfo("Thông báo", f"Phòng {room} đã được chuyển sang trạng thái chưa thanh toán.")
 
@@ -203,7 +219,41 @@ class BillingApp:
     def reset(self):
         for r in self.rooms:
             self.rooms_data[r] = {"items": [], "total_amount": 0.0, "total_paid": 0.0, "payment_status": "Unpaid"}
+        self.save_data()
         self.refresh_display()
+
+    # Lưu dữ liệu ra file
+    def save_data(self):
+        data = {
+            "rooms_data": self.rooms_data,
+            "current_room": self.current_room.get()
+        }
+        try:
+            dirpath = os.path.dirname(self.data_file)
+            if dirpath and not os.path.exists(dirpath):
+                os.makedirs(dirpath, exist_ok=True)
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print("Lưu dữ liệu thất bại:", e)
+
+    # Nạp dữ liệu từ file (nếu có)
+    def load_data(self):
+        if not os.path.exists(self.data_file):
+            return
+        try:
+            with open(self.data_file, 'r', encoding='utf-8') as f:
+                saved = json.load(f)
+            rooms_data = saved.get("rooms_data")
+            if isinstance(rooms_data, dict):
+                for r in self.rooms:
+                    if r in rooms_data:
+                        self.rooms_data[r] = rooms_data[r]
+            current = saved.get("current_room")
+            if current in self.rooms:
+                self.current_room.set(current)
+        except Exception as e:
+            print("Khởi tạo dữ liệu từ file thất bại:", e)
 
     # Hiển thị danh sách và trạng thái cho phòng đang chọn
     def refresh_display(self):
@@ -227,7 +277,6 @@ class BillingApp:
                 self.items_text.insert(tk.END, f"{idx}. {display_type}: {item['amount']:.0f} VND - {item['description']}\n")
         self.items_text.config(state='disabled')
 
-        # Cập nhật trạng thái tổng quan và màu badge
         status, color = self._status_and_color_from(data)
         self.status_badge.config(text=status, bg=color)
 
