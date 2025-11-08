@@ -1,16 +1,18 @@
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 from tkinter import ttk
+import sqlite3
 import json
-import os
 
 class BillingApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Hóa đơn thanh toán")
 
-        # Đường dẫn lưu dữ liệu (billing_data.json cùng thư mục script)
-        self.data_file = os.path.join(os.path.dirname(__file__), "billing_data.json")
+        # Cơ sở dữ liệu: kết nối và khởi tạo bảng
+        self.conn = sqlite3.connect('billing.db')
+        self.cursor = self.conn.cursor()
+        self._setup_db()
 
         # Danh sách phòng
         self.rooms = ["Phòng 101", "Phòng 102", "Phòng 103"]
@@ -24,8 +26,8 @@ class BillingApp:
         # Phòng đang làm việc
         self.current_room = tk.StringVar(value=self.rooms[0])
 
-        # Tải dữ liệu từ file (nếu có)
-        self.load_data()
+        # Tải dữ liệu từ DB (nếu có) hoặc khởi tạo
+        self._load_all_rooms()
 
         # Giao diện chọn phòng
         top = tk.Frame(root)
@@ -48,6 +50,7 @@ class BillingApp:
         btn_frame = tk.Frame(root)
         btn_frame.pack(pady=6)
 
+        # Icons (emoji) làm "icon" cho từng nút
         self.btn_rent = tk.Button(btn_frame, text="💼 Tiền thuê/phòng/tháng", width=22, command=self.add_rent, bg="white")
         self.btn_rent.grid(row=0, column=0, padx=5, pady=5)
 
@@ -69,7 +72,7 @@ class BillingApp:
         self.reset_btn = tk.Button(root, text="Reset", command=self.reset, width=20, bg="white")
         self.reset_btn.pack(pady=5)
 
-        # Khung hiển thị chi tiết và tổng quan
+        # Khung hiển thị chi tiết và tổngquan
         summary_frame = tk.Frame(root)
         summary_frame.pack(padx=10, pady=10, fill='both', expand=True)
 
@@ -83,22 +86,17 @@ class BillingApp:
         self.status_label = tk.Label(root, text="", anchor='w', justify='left')
         self.status_label.pack(fill='x', padx=10, pady=5)
 
-        # Đăng ký xử lý đóng cửa sổ để lưu lại
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
         self.refresh_display()
 
     def close_interface(self):
-        self.on_close()
-
-    def on_close(self):
-        # Lưu dữ liệu và đóng
-        self.save_data()
+        # Đóng kết nối DB và giao diện
+        self.conn.close()
         self.root.destroy()
 
     def on_room_changed(self, event):
         self.refresh_display()
 
+    # Lấy trạng thái và màu dựa trên dữ liệu
     def _status_and_color_from(self, data):
         if data['total_amount'] == 0:
             return "Chưa tính toán", "#f1c40f"  # vàng
@@ -134,7 +132,7 @@ class BillingApp:
         delta = new - old
         rent_item['amount'] = new
         self.rooms_data[room]['total_amount'] += delta
-        self.save_data()
+        self._save_room(room)
         self.refresh_display()
 
     # 3) Tiền điện: nhập tiêu thụ -> *4000
@@ -166,7 +164,7 @@ class BillingApp:
         item = {"type": item_type, "amount": amount, "description": description}
         self.rooms_data[room]['items'].append(item)
         self.rooms_data[room]['total_amount'] += amount
-        self.save_data()
+        self._save_room(room)
         self.refresh_display()
 
     # 6) Cập nhật trạng thái thanh toán
@@ -190,6 +188,7 @@ class BillingApp:
 
         tk.Label(win, text=f"Cập nhật trạng thái thanh toán cho {room}", font=('Arial', 12, 'bold')).pack(pady=6)
 
+        # Thay vì nhập số tiền, hiện hai nút để đặt trạng thái
         status_frame = tk.Frame(win)
         status_frame.pack(pady=8)
         tk.Label(status_frame, text="Chọn trạng thái thanh toán:").pack()
@@ -197,63 +196,29 @@ class BillingApp:
         def set_paid():
             data['total_paid'] = max(data['total_paid'], data['total_amount'])
             data['payment_status'] = "Paid"
+            self._save_room(room)
             win.destroy()
-            self.save_data()
             self.refresh_display()
             messagebox.showinfo("Thông báo", f"Phòng {room} thanh toán thành công.")
 
         def set_unpaid():
             data['payment_status'] = "Unpaid"
+            self._save_room(room)
             win.destroy()
-            self.save_data()
             self.refresh_display()
             messagebox.showinfo("Thông báo", f"Phòng {room} đã được chuyển sang trạng thái chưa thanh toán.")
 
-        btn_paid = tk.Button(win, text="✅ Đã thanh toán", width=16, command=set_paid, bg="white")
+        btn_paid = tk.Button(win, text="✅ Đã thanh toán", width=16, command=set_paid, bg="#28a745", fg="white", activebackground="#28a745", activeforeground="white")
         btn_paid.pack(pady=6)
 
-        btn_unpaid = tk.Button(win, text="❌ Chưa thanh toán", width=16, command=set_unpaid, bg="white")
+        btn_unpaid = tk.Button(win, text="❌ Chưa thanh toán", width=16, command=set_unpaid, bg="#dc3545", fg="white", activebackground="#dc3545", activeforeground="white")
         btn_unpaid.pack(pady=6)
 
     # Reset toàn bộ dữ liệu
     def reset(self):
         for r in self.rooms:
-            self.rooms_data[r] = {"items": [], "total_amount": 0.0, "total_paid": 0.0, "payment_status": "Unpaid"}
-        self.save_data()
+            self._reset_db_for_room(r)
         self.refresh_display()
-
-    # Lưu dữ liệu ra file
-    def save_data(self):
-        data = {
-            "rooms_data": self.rooms_data,
-            "current_room": self.current_room.get()
-        }
-        try:
-            dirpath = os.path.dirname(self.data_file)
-            if dirpath and not os.path.exists(dirpath):
-                os.makedirs(dirpath, exist_ok=True)
-            with open(self.data_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print("Lưu dữ liệu thất bại:", e)
-
-    # Nạp dữ liệu từ file (nếu có)
-    def load_data(self):
-        if not os.path.exists(self.data_file):
-            return
-        try:
-            with open(self.data_file, 'r', encoding='utf-8') as f:
-                saved = json.load(f)
-            rooms_data = saved.get("rooms_data")
-            if isinstance(rooms_data, dict):
-                for r in self.rooms:
-                    if r in rooms_data:
-                        self.rooms_data[r] = rooms_data[r]
-            current = saved.get("current_room")
-            if current in self.rooms:
-                self.current_room.set(current)
-        except Exception as e:
-            print("Khởi tạo dữ liệu từ file thất bại:", e)
 
     # Hiển thị danh sách và trạng thái cho phòng đang chọn
     def refresh_display(self):
@@ -277,6 +242,7 @@ class BillingApp:
                 self.items_text.insert(tk.END, f"{idx}. {display_type}: {item['amount']:.0f} VND - {item['description']}\n")
         self.items_text.config(state='disabled')
 
+        # Cập nhật trạng thái tổng quan và màu badge
         status, color = self._status_and_color_from(data)
         self.status_badge.config(text=status, bg=color)
 
@@ -289,7 +255,92 @@ class BillingApp:
         )
         self.status_label.config(text=summary)
 
+    # Hàm lưu toàn bộ trạng thái của một phòng vào DB
+    def _save_room(self, room):
+        data = self.rooms_data[room]
+        items_json = json.dumps(data['items'])
+        self.cursor.execute("UPDATE billing SET total_amount=?, total_paid=?, payment_status=?, items_json=? WHERE room=?",
+                            (data['total_amount'], data['total_paid'], data['payment_status'], items_json, room))
+        if self.cursor.rowcount == 0:
+            self.cursor.execute("INSERT INTO billing (room, total_amount, total_paid, payment_status, items_json) VALUES (?,?,?,?,?)",
+                                (room, data['total_amount'], data['total_paid'], data['payment_status'], items_json))
+        self.conn.commit()
+
+    # Cập nhật dữ liệu từ DB cho tất cả các phòng (nếu có)
+    def _load_all_rooms(self):
+        for room in self.rooms:
+            self._load_room_from_db(room)
+
+    def _load_room_from_db(self, room):
+        self.cursor.execute("SELECT total_amount, total_paid, payment_status, items_json FROM billing WHERE room=?", (room,))
+        row = self.cursor.fetchone()
+        if row:
+            total_amount, total_paid, payment_status, items_json = row
+            items = json.loads(items_json) if items_json else []
+            self.rooms_data[room] = {
+                "items": items,
+                "total_amount": total_amount,
+                "total_paid": total_paid,
+                "payment_status": payment_status
+            }
+        else:
+            # Chưa có bản ghi, tạo mặc định
+            self.cursor.execute(
+                "INSERT INTO billing (room, total_amount, total_paid, payment_status, items_json) VALUES (?,?,?,?,?)",
+                (room, 0.0, 0.0, "Unpaid", json.dumps([]))
+            )
+            self.conn.commit()
+            self.rooms_data[room] = {"items": [], "total_amount": 0.0, "total_paid": 0.0, "payment_status": "Unpaid"}
+
+    # Khởi tạo bảng DB
+    def _setup_db(self):
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS billing (
+                room TEXT PRIMARY KEY,
+                total_amount REAL,
+                total_paid REAL,
+                payment_status TEXT,
+                items_json TEXT
+            )
+        """)
+        self.conn.commit()
+
+    # Reset DB cho từng phòng (để trình tự nhập lại dữ liệu sau này)
+    def _reset_db_for_room(self, room):
+        self.rooms_data[room] = {"items": [], "total_amount": 0.0, "total_paid": 0.0, "payment_status": "Unpaid"}
+        self.cursor.execute(
+            "UPDATE billing SET total_amount=?, total_paid=?, payment_status=?, items_json=? WHERE room=?",
+            (0.0, 0.0, "Unpaid", json.dumps([]), room)
+        )
+        if self.cursor.rowcount == 0:
+            self.cursor.execute(
+                "INSERT INTO billing (room, total_amount, total_paid, payment_status, items_json) VALUES (?,?,?,?,?)",
+                (room, 0.0, 0.0, "Unpaid", json.dumps([]))
+            )
+        self.conn.commit()
+
+    # Reset dữ liệu tất cả các phòng
+    def _reset_all(self):
+        for r in self.rooms:
+            self._reset_db_for_room(r)
+
+    # Reset button handler
+    def reset(self):
+        self._reset_all()
+        self.refresh_display()
+
+    # Hàm khởi tạo dữ liệu DB nếu lần đầu chạy (và load dữ liệu hiện có)
+    def _initialize_or_load(self):
+        self._setup_db()
+        self._load_all_rooms()
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = BillingApp(root)
+    # Đảm bảo DB được khởi tạo/đọc lần đầu
+    app._initialize_or_load()
     root.mainloop()
+    '''Ví dụ nhanh (Python) để lấy danh sách các phòng và tổng tiền:
+Kết nối: conn = sqlite3.connect('billing.db')
+Lấy danh sách phòng: SELECT room, total_amount, total_paid, payment_status, items_json FROM billing
+Parse items_json bằng json.loads(...) để xem danh sách item cho mỗi phòng.'''
